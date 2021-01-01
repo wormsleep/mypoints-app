@@ -1,9 +1,11 @@
 import Vue from 'vue'
 import VueRouter from 'vue-router'
 
-const about = () => import('../views/About')
+import login from '../views/Login'
+import home from '../views/Home'
+import about from '../views/About'
 
-const home = () => import('../views/Home')
+
 const gallery = () => import('../views/gallery')
 const working = () => import('../views/working')
 const points = () => import('../views/points')
@@ -19,7 +21,14 @@ Vue.use(VueRouter)
  */
 
 const routes = [
-  {path: '*', redirect:'/home'},
+  {path: '*', redirect:'/login'},
+  {
+    name: 'login',
+    component: login,
+    meta: {
+      keepAlive: false
+    }
+  },
   {
     name: 'home',
     component: home,
