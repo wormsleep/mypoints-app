@@ -1,16 +1,18 @@
 import Vue from 'vue'
 import Vuex from 'vuex'
+import mutations from './mutations'
 import persistedState from 'vuex-persistedstate'
 
 Vue.use(Vuex)
 
 export default new Vuex.Store({
   state: {
-    context: {},
-    lastDlzh: ''
+    dlxx: {
+      dlzh: '',
+      dlmm: ''
+    }
   },
-  mutations: {
-  },
+  mutations,
   actions: {
   },
   modules: {
@@ -18,7 +20,7 @@ export default new Vuex.Store({
   plugins: [
     persistedState({
       storage: window.localStorage,
-      paths: ['context','lastDlzh']
+      paths: ['context','dlxx']
     })
   ]
 })

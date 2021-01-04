@@ -14,7 +14,7 @@
 
 <script>
   import {Cell, CellGroup, Field, Button} from 'vant';
-
+  import {mapState, mapMutations} from 'vuex'
 
   export default {
     name: '',
@@ -31,35 +31,41 @@
       }
     },
     methods: {
+      ...mapMutations([
+
+      ]),
+      checkLogin() {
+
+      },
       handleLogin() {
-        this.$http({
-          url: '/getEncryptor',
-          method: 'post',
-        })
-          .then((resp) => {
+        this.$post('/getEncryptor')
+          .then(this.verify)
+          .then(data => {
+            console.log(data)
+            if(data.success) {
+              this.$util.setContext(data.obj.context)
+              this.$util.setToken(data.obj.token)
+              this.$util.setVersion(data.obj.version)
 
-            let publicKey = resp.data.publicKey
-            let rzid = resp.data.rzid
-
-            this.$http({
-              url: '/verify',
-              method: 'post',
-              data: {
-                dlzhmm: this.$util.crypto.rsa.encrypt(
-                  publicKey,
-                  JSON.stringify({
-                    dlzh: 'superadmin',
-                    dlmm: 'zhaoyifan'
-                  })
-                ),
-                rzid: rzid
-              }
-            })
-              .then((resp2) => {
-                debugger
-              })
+              this.$router.push({path: '/home/gallery'})
+            }
           })
-      }
+          .catch(error => {
+            console.log(error)
+          })
+      },
+      verify(encrpytor) {
+        return this.$post('/verify', {
+          dlzhmm: this.$util.crypto.rsa.encrypt(
+            encrpytor.publicKey,
+            JSON.stringify({
+              dlzh: 'superadmin',
+              dlmm: 'zhaoyifan'
+            })
+          ),
+          rzid: encrpytor.rzid
+        })
+      },
     },
     mounted() {
 

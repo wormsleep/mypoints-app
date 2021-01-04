@@ -5,36 +5,6 @@ import JSEncrypt from "jsencrypt";
 
 
 /**
- * @description 格式化金额
- * @param number：要格式化的数字
- * @param decimals：保留几位小数 默认0位
- * @param decPoint：小数点符号 默认.
- * @param thousandsSep：千分位符号 默认为,
- */
-const formatMoney = (number, decimals = 0, decPoint = '.', thousandsSep = ',') => {
-  number = (number + '').replace(/[^0-9+-Ee.]/g, '')
-  let n = !isFinite(+number) ? 0 : +number
-  let prec = !isFinite(+decimals) ? 0 : Math.abs(decimals)
-  let sep = (typeof thousandsSep === 'undefined') ? ',' : thousandsSep
-  let dec = (typeof decPoint === 'undefined') ? '.' : decPoint
-  let s = ''
-  let toFixedFix = function (n, prec) {
-    let k = Math.pow(10, prec)
-    return '' + Math.ceil(n * k) / k
-  }
-  s = (prec ? toFixedFix(n, prec) : '' + Math.round(n)).split('.')
-  let re = /(-?\d+)(\d{3})/
-  while (re.test(s[0])) {
-    s[0] = s[0].replace(re, '$1' + sep + '$2')
-  }
-  if ((s[1] || '').length < prec) {
-    s[1] = s[1] || ''
-    s[1] += new Array(prec - s[1].length + 1).join('0')
-  }
-  return s.join(dec)
-}
-
-/**
  *
  * @param v any
  * @param options
@@ -108,9 +78,119 @@ const getUrlWithParams = (url, params) => {
   return encodeURI(url)
 }
 
-/* ajax service */
+/* 本地数据存储 */
+const LocalStorageUtil = {};
 
-let service = axios.create({
+/**
+ * 本地数据存储。不支持 Function 存储
+ * @param key
+ * @param data
+ */
+LocalStorageUtil.setItem = function (key, data) {
+  if (isNotEmpty(data) && typeof data !== 'function') {
+    try {
+      window.localStorage.setItem(key, JSON.stringify(data));
+    } catch (e) {
+    }
+  }
+}
+
+/**
+ * 本地数据获取。支持默认数值
+ * @param key
+ * @param defaultData
+ * @returns {undefined}
+ */
+LocalStorageUtil.getItem = function (key, defaultData) {
+  var data;
+
+  try {
+    data = JSON.parse(window.localStorage.getItem(key));
+  } catch (e) {
+  }
+
+  return isEmpty(data)
+    ? isEmpty(defaultData) ? undefined : defaultData
+    : data;
+}
+
+/* 本地数据存储 - SessionStorage */
+const SessionStorageUtil = {};
+
+/**
+ * 本地数据存储。不支持 Function 存储
+ * @param key
+ * @param data
+ */
+SessionStorageUtil.setItem = function (key, data) {
+  if (isNotEmpty(data) && typeof data !== 'function') {
+    try {
+      window.sessionStorage.setItem(key, JSON.stringify(data));
+    } catch (e) {
+    }
+  }
+}
+
+/**
+ * 本地数据获取。支持默认数值
+ * @param key
+ * @param defaultData
+ * @returns {undefined}
+ */
+SessionStorageUtil.getItem = function (key, defaultData) {
+  var data;
+
+  try {
+    data = JSON.parse(window.sessionStorage.getItem(key));
+  } catch (e) {
+  }
+
+  return isEmpty(data)
+    ? isEmpty(defaultData) ? undefined : defaultData
+    : data;
+};
+
+//*** token 对象 ***
+const setToken = (token) => {
+  // SessionStorage 正式环境使用
+  SessionStorageUtil.setItem("_token", token);
+  // 压力测试需要临时改为 LocalStorage
+  // LocalStorageUtil.setItem("_token", token);
+};
+
+const getToken = () => {
+  // SessionStorage 正式环境使用
+  return SessionStorageUtil.getItem("_token");
+  // 压力测试需要临时改为 LocalStorage
+  // return LocalStorageUtil.getItem("_token");
+};
+
+//*** Context 对象 ***
+const setContext = (context) => {
+  // SessionStorage 正式环境使用
+  SessionStorageUtil.setItem("_cntx", context);
+  // 压力测试需要临时改为 LocalStorage
+  // LocalStorageUtil.setItem("_cntx", context);
+};
+
+const getContext = () => {
+  // SessionStorage 正式环境使用
+  return SessionStorageUtil.getItem("_cntx");
+  // 压力测试需要临时改为 LocalStorage
+  // return LocalStorageUtil.getItem("_cntx");
+};
+
+//*** Version 对象 ***
+const setVersion = (version) => {
+  LocalStorageUtil.setItem("_ver", version);
+};
+
+const getVersion = () => {
+  return LocalStorageUtil.getItem("_ver");
+};
+
+/* ajax service */
+const service = axios.create({
   baseURL: process.env.VUE_APP_URL + (process.env.NODE_ENV === 'development' ? '/api' : ''),
   timeout: 10 * 1000
 })
@@ -120,6 +200,8 @@ const AXIOS_DEFAULT_CONFIGURATION = {
     'Content-Type': 'application/x-www-form-urlencoded;charset=utf8'
   }
 }
+
+const AXIOS_TOKEN_NAME = 'ItbysToken'
 
 service.interceptors.request.use(config => {
   config = config || {}
@@ -131,13 +213,13 @@ service.interceptors.request.use(config => {
   }
 
   // 针对 POST 中的 'Content-Type': 'application/x-www-form-urlencoded;charset=utf8' 对应处理
-  if(/post/i.test(config.method) &&
+  if (/post/i.test(config.method) &&
     /^application\/x-www-form-urlencoded/i.test(config.headers['Content-Type'])) {
     config.data = qs.stringify(config.data)
   }
 
-  // let m = 'service.interceptors.request' + JSON.stringify(config)
-  // console.log(m)
+  let m = 'service.interceptors.request' + JSON.stringify(config)
+  console.log(m)
 
   return config;
 }, error => {
@@ -161,28 +243,41 @@ service.interceptors.response.use(response => {
 })
 
 const $post = (url, data, config) => {
+  config = config || {}
+
+  config.headers = Object.assign({}, config.headers)
+  config.headers[AXIOS_TOKEN_NAME] = getToken()
+
   return new Promise((resolve, reject) => {
 
     service(Object.assign({}, {
       url: url,
       method: 'POST',
       data: data
-    }, config || {}))
+    }, config))
       .then((resp) => {
         resolve(resp.data)
       })
       .catch((error) => {
-        reject(em)
+        let erd = error.response.data
+
+        let errorMessage = erd.message || '服务器处理异常'
+        let errorCode = erd.code || '9999'
+
+        reject({
+          em: errorMessage,
+          ec: errorCode
+        })
       })
 
   })
 }
 
 /* crypto 工具集 */
-const cryptoUtil = {}
+const CryptoUtil = {}
 
-cryptoUtil.rsa = {}
-cryptoUtil.rsa.encrypt = (publicKey, plaintext) => {
+CryptoUtil.rsa = {}
+CryptoUtil.rsa.encrypt = (publicKey, plaintext) => {
   var jsEncrypt = new JSEncrypt();
 
   jsEncrypt.setPublicKey(publicKey);
@@ -190,7 +285,7 @@ cryptoUtil.rsa.encrypt = (publicKey, plaintext) => {
   return jsEncrypt.encrypt(plaintext);
 }
 
-cryptoUtil.rsa.decrypt = (privateKey, cliphertext) => {
+CryptoUtil.rsa.decrypt = (privateKey, cliphertext) => {
   var jsEncrypt = new JSEncrypt();
 
   jsEncrypt.setPrivateKey(privateKey);
@@ -198,15 +293,49 @@ cryptoUtil.rsa.decrypt = (privateKey, cliphertext) => {
   return jsEncrypt.decrypt(cliphertext);
 }
 
+
+/* number 工具集 */
+const NumberUtil = {}
+
+/**
+ * @description 格式化金额
+ * @param number：要格式化的数字
+ * @param decimals：保留几位小数 默认0位
+ * @param decPoint：小数点符号 默认.
+ * @param thousandsSep：千分位符号 默认为,
+ */
+NumberUtil.formatMoney = (number, decimals = 0, decPoint = '.', thousandsSep = ',') => {
+  number = (number + '').replace(/[^0-9+-Ee.]/g, '')
+  let n = !isFinite(+number) ? 0 : +number
+  let prec = !isFinite(+decimals) ? 0 : Math.abs(decimals)
+  let sep = (typeof thousandsSep === 'undefined') ? ',' : thousandsSep
+  let dec = (typeof decPoint === 'undefined') ? '.' : decPoint
+  let s = ''
+  let toFixedFix = function (n, prec) {
+    let k = Math.pow(10, prec)
+    return '' + Math.ceil(n * k) / k
+  }
+  s = (prec ? toFixedFix(n, prec) : '' + Math.round(n)).split('.')
+  let re = /(-?\d+)(\d{3})/
+  while (re.test(s[0])) {
+    s[0] = s[0].replace(re, '$1' + sep + '$2')
+  }
+  if ((s[1] || '').length < prec) {
+    s[1] = s[1] || ''
+    s[1] += new Array(prec - s[1].length + 1).join('0')
+  }
+  return s.join(dec)
+}
+
 /* date 工具集 */
-const dateUtil = {}
+const DateUtil = {}
 
 /**
  * 是否为有效日期
  * @param date 待检验的日期
  * @return Boolean
  */
-dateUtil.isValid = (date) => {
+DateUtil.isValid = (date) => {
 
   try {
     return moment(date).isValid()
@@ -222,17 +351,17 @@ dateUtil.isValid = (date) => {
  * @param format
  * @returns {*}
  */
-dateUtil.format = (date, format) => {
+DateUtil.format = (date, format) => {
   format = isEmpty(format) ? 'YYYY-MM-DD' : format
 
-  if (dateUtil.isValid(date)) {
+  if (DateUtil.isValid(date)) {
     return moment(date).format(format)
   } else {
     return date
   }
 }
 
-dateUtil.getTimestamp = () => {
+DateUtil.getTimestamp = () => {
   return moment().format('YYYY-MM-DD HH:mm:ss')
 }
 
@@ -434,16 +563,21 @@ myscreen.unlock = () => {
   }
 }
 
-
 export {
-  formatMoney,
   isEmpty,
   isNotEmpty,
+  getToken,
+  setToken,
+  setContext,
+  getContext,
+  getVersion,
+  setVersion,
   getUrlWithParams,
   service as $http,
   $post,
-  cryptoUtil as crypto,
-  dateUtil as date,
+  CryptoUtil as crypto,
+  DateUtil as date,
+  NumberUtil as number,
   appNeedForUpdate,
   getAppNativeVersion,
   mydevice,
